@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clínica Bella Pele · Painel</title>
+<style>
+  :root {
+    --pink:    #993556;
+    --pink-l:  #FBEAF0;
+    --pink-m:  #F4C0D1;
+    --teal:    #0F6E56;
+    --teal-l:  #E1F5EE;
+    --amber-l: #FAEEDA;
+    --amber:   #854F0B;
+    --gray:    #5F5E5A;
+    --gray-l:  #F1EFE8;
+    --red:     #A32D2D;
+    --red-l:   #FCEBEB;
+    --green:   #3B6D11;
+    --green-l: #EAF3DE;
+    --border:  #E0DDD6;
+    --bg:      #F8F7F3;
+    --text:    #2C2C2A;
+    --muted:   #888780;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  header { background: var(--pink); color: white; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; font-weight: 500; }
+  header span { font-size: 12px; opacity: .8; margin-left: auto; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .card { background: white; border: 0.5px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .card .num   { font-size: 28px; font-weight: 500; }
+  .card.pendente  .num { color: var(--amber); }
+  .card.confirmado .num { color: var(--teal); }
+  .card.cancelado  .num { color: var(--red); }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .filter-btn { padding: 6px 14px; border: 0.5px solid var(--border); border-radius: 20px; background: white; cursor: pointer; font-size: 13px; color: var(--gray); }
+  .filter-btn.active { background: var(--pink); color: white; border-color: var(--pink); }
+
+  .refresh-btn { margin-left: auto; padding: 6px 14px; border: 0.5px solid var(--border); border-radius: 8px; background: white; cursor: pointer; font-size: 13px; color: var(--gray); }
+  .refresh-btn:hover { background: var(--gray-l); }
+
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; border: 0.5px solid var(--border); }
+  th { text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 500; color: var(--muted); border-bottom: 0.5px solid var(--border); background: var(--gray-l); }
+  td { padding: 11px 14px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFAF8; }
+
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge.pendente   { background: var(--amber-l); color: var(--amber); }
+  .badge.confirmado { background: var(--green-l); color: var(--green); }
+  .badge.cancelado  { background: var(--red-l);   color: var(--red); }
+
+  select.status-select { font-size: 12px; padding: 4px 8px; border: 0.5px solid var(--border); border-radius: 6px; background: white; cursor: pointer; }
+
+  .empty { text-align: center; padding: 48px; color: var(--muted); }
+  .loading { text-align: center; padding: 32px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+  <h1>Clínica Bella Pele · Painel de Agendamentos</h1>
+  <span id="hora"></span>
+</header>
+
+<main>
+  <div class="cards">
+    <div class="card pendente">
+      <div class="label">Pendentes</div>
+      <div class="num" id="n-pendente">–</div>
+    </div>
+    <div class="card confirmado">
+      <div class="label">Confirmados</div>
+      <div class="num" id="n-confirmado">–</div>
+    </div>
+    <div class="card cancelado">
+      <div class="label">Cancelados</div>
+      <div class="num" id="n-cancelado">–</div>
+    </div>
+    <div class="card">
+      <div class="label">Total</div>
+      <div class="num" id="n-total">–</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="filter-btn active" data-status="">Todos</button>
+    <button class="filter-btn" data-status="pendente">Pendentes</button>
+    <button class="filter-btn" data-status="confirmado">Confirmados</button>
+    <button class="filter-btn" data-status="cancelado">Cancelados</button>
+    <button class="refresh-btn" onclick="carregarDados()">↻ Atualizar</button>
+  </div>
+
+  <div id="tabela-container">
+    <div class="loading">Carregando agendamentos...</div>
+  </div>
+</main>
+
+<script>
+let filtroAtual = '';
+
+async function carregarDashboard() {
+  const r = await fetch('/api/dashboard');
+  const d = await r.json();
+  document.getElementById('n-pendente').textContent   = d.contagem.pendente;
+  document.getElementById('n-confirmado').textContent = d.contagem.confirmado;
+  document.getElementById('n-cancelado').textContent  = d.contagem.cancelado;
+  document.getElementById('n-total').textContent =
+    d.contagem.pendente + d.contagem.confirmado + d.contagem.cancelado;
+}
+
+async function carregarAgendamentos(status = '') {
+  const url = status ? `/api/agendamentos?status=${status}` : '/api/agendamentos';
+  const r   = await fetch(url);
+  return r.json();
+}
+
+function renderTabela(agendamentos) {
+  const container = document.getElementById('tabela-container');
+  if (!agendamentos.length) {
+    container.innerHTML = '<div class="empty">Nenhum agendamento encontrado.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Paciente</th>
+          <th>Telefone</th>
+          <th>Procedimento</th>
+          <th>Data / Hora</th>
+          <th>Status</th>
+          <th>Ação</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${agendamentos.map(a => `
+          <tr id="row-${a.id}">
+            <td style="color:var(--muted);font-size:12px">#${a.id}</td>
+            <td><strong>${a.nome}</strong></td>
+            <td>${a.telefone}</td>
+            <td>${a.procedimento}</td>
+            <td>${a.data_hora}</td>
+            <td><span class="badge ${a.status}">${a.status}</span></td>
+            <td>
+              <select class="status-select" onchange="atualizarStatus(${a.id}, this.value)">
+                <option value="pendente"   ${a.status==='pendente'   ? 'selected':''}>Pendente</option>
+                <option value="confirmado" ${a.status==='confirmado' ? 'selected':''}>Confirmado</option>
+                <option value="cancelado"  ${a.status==='cancelado'  ? 'selected':''}>Cancelado</option>
+              </select>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function atualizarStatus(id, status) {
+  await fetch(`/api/agendamentos/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  await carregarDados();
+}
+
+async function carregarDados() {
+  await carregarDashboard();
+  const agendamentos = await carregarAgendamentos(filtroAtual);
+  renderTabela(agendamentos);
+}
+
+// Filtros
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filtroAtual = btn.dataset.status;
+    carregarDados();
+  });
+});
+
+// Relógio
+function atualizarHora() {
+  const agora = new Date();
+  document.getElementById('hora').textContent =
+    agora.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+atualizarHora();
+setInterval(atualizarHora, 30000);
+
+// Auto-refresh a cada 30s
+carregarDados();
+setInterval(carregarDados, 30000);
+</script>
+</body>
+</html>
